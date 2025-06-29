@@ -1,0 +1,10 @@
+numpy
+scipy==1.10.1
+sympy==1.6.0
+pathos
+tqdm
+fsspec
+cupy-cuda12x  # For GPU acceleration (CUDA 12.x)
+# Alternative: cupy-cuda11x for CUDA 11.x
+# If no CUDA available, CuPy will be optional and code falls back to NumPy
+-i https://pypi.tuna.tsinghua.edu.cn/simple
