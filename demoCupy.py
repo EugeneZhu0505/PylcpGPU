@@ -6,9 +6,9 @@ import cupy as cp
 import scipy.constants as cts
 import pylcp.obeCupy
 import time
+import h5py
 
 from config import coolingArgs
-from tqdm import tqdm
 from scipy.spatial.transform import Rotation
 
 
@@ -53,7 +53,18 @@ class CoolingModule:
         numAtom = coolingArgs['num_atom'] # 原子个数
         po2D = cp.array(coolingArgs['po_2d']) / x0
         roffset2D = cp.array(coolingArgs['roffset_2d']) / x0
-        v0, r0, rho0 = cp.random.uniform(-1, 1, (3, numAtom)), cp.random.randn(3, numAtom) * 10000, cp.random.randn(24*24, numAtom)
+        # 加载初始化数据
+        r0, v0, rho0 = [], [], []
+        with h5py.File('E:\BaiduSyncdisk\Master\Project\Code\AtomEvolve\ZGD\Rb\inti_solsobe612.h5', 'r') as f:
+            for key in f.keys():
+                group = f[key]
+                # t = np.array(group['t'])
+                r0.append(cp.array(group['r']))
+                v0.append(cp.array(group['v']))
+                rho0.append(cp.array(group['rho']).flatten())
+        r0 = cp.array(r0).T
+        v0 = cp.array(v0).T
+        rho0 = cp.array(rho0).T
         det2D = coolingArgs['det_2d']
         wb2D = coolingArgs['wb_2d']
         tmax2D = coolingArgs['tmax_2d']
@@ -139,6 +150,7 @@ class CoolingModule:
         
         print("initializing OBE")
         startTime = time.time()
+        self.args['r0'] -= self.args['po2D'][:, cp.newaxis]
         obe = pylcp.obeCupy.Obe(
             laserBeams=self.laserBeams2D,
             magField=self.magField2D,
@@ -151,14 +163,19 @@ class CoolingModule:
         print("OBE initialized in {} s".format(time.time() - startTime))
 
         print("evolving OBE")
-        obe.evolve_motion(
+        sol = obe.evolve_motion(
             tSpan=tSpan,
             # random_recoil=self.args['randomRecoilFlag'],
             # max_scatter_probability=self.args['maxScatterProbability'],
             tEval=tEval,
             progressBarFlag=True
         )
-        print(obe.sol.r.shape)
+
+        with h5py.File("./sol2D.h5", 'w') as f:
+            group = f.create_group('sol')
+            for key in obe.sol.keys():
+                group.create_dataset(name=key, data=sol[key])
+
 
 
         pass

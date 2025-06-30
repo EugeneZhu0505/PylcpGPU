@@ -224,10 +224,10 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
         else:
             # The value in t_eval equal to t will be included.
             if solver.direction > 0:
-                t_eval_i_new = cp.searchsorted(t_eval, t, side='right')
+                t_eval_i_new = cp.searchsorted(t_eval, cp.array([t]), side='right')
                 t_eval_step = t_eval[t_eval_i:t_eval_i_new]
             else:
-                t_eval_i_new = cp.searchsorted(t_eval, t, side='left')
+                t_eval_i_new = cp.searchsorted(t_eval, cp.array([t]), side='left')
                 # It has to be done with two slice operations, because
                 # you can't slice to 0th element inclusive using backward
                 # slicing.

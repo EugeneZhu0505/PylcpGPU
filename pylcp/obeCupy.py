@@ -336,9 +336,10 @@ class Obe(object):
         return rho
     
     def __reshape_sol(self, sol):
-        self.sol.rho = self.__reshape_rho(sol.y[:-6])
-        self.sol.r = cp.real(sol.y[-3:])
-        self.sol.v = cp.real(sol.y[-6:-3])
+        self.sol.t = cp.asnumpy(sol.t)
+        self.sol.rho = cp.asnumpy(self.__reshape_rho(sol.y[:-6]))
+        self.sol.r = cp.asnumpy(cp.real(sol.y[-3:]))
+        self.sol.v = cp.asnumpy(cp.real(sol.y[-6:-3]))
 
     
     def __drhodt(self, t, r, rho):
