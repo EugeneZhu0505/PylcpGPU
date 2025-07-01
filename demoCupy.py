@@ -1,6 +1,4 @@
 
-
-
 import pylcp
 import cupy as cp
 import scipy.constants as cts
@@ -173,7 +171,7 @@ class CoolingModule:
 
         with h5py.File("./sol2D.h5", 'w') as f:
             group = f.create_group('sol')
-            for key in obe.sol.keys():
+            for key in sol.keys():
                 group.create_dataset(name=key, data=sol[key])
 
 

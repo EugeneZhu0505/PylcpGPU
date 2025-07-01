@@ -22,10 +22,6 @@ MESSAGES = {0: "The solver successfully reached the end of the integration inter
             1: "A termination event occurred."}
 
 
-class OdeResult(OptimizeResult):
-    pass
-
-
 def prepare_events(events):
     if callable(events):
         events = (events,)
@@ -105,9 +101,6 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
     t0, tf = map(float, t_span)
 
     if args is not None:
-        # Wrap the user's fun (and jac, if given) in lambdas to hide the
-        # additional parameters.  Pass in the original fun as a keyword
-        # argument to keep it in the scope of the lambda.
         try:
             _ = [*(args)]
         except TypeError as exp:
@@ -137,9 +130,7 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
         if tf > t0:
             t_eval_i = 0
         else:
-            # Make order of t_eval decreasing to use np.searchsorted.
             t_eval = t_eval[::-1]
-            # This will be an upper bound for slices.
             t_eval_i = t_eval.shape[0]
 
     if method in METHODS:
@@ -164,10 +155,6 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
 
     if events is not None:
         if args is not None:
-            # Wrap user functions in lambdas to hide the additional parameters.
-            # The original event function is passed as a keyword argument to the
-            # lambda to keep the original function in scope (i.e., avoid the
-            # late binding closure "gotcha").
             events = [lambda t, x, event=event: event(t, x, *args)
                       for event in events]
         g = [event(t0, y0) for event in events]
@@ -222,15 +209,12 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
             ts.append(t)
             ys.append(y)
         else:
-            # The value in t_eval equal to t will be included.
             if solver.direction > 0:
                 t_eval_i_new = cp.searchsorted(t_eval, cp.array([t]), side='right')
                 t_eval_step = t_eval[t_eval_i:t_eval_i_new]
             else:
                 t_eval_i_new = cp.searchsorted(t_eval, cp.array([t]), side='left')
-                # It has to be done with two slice operations, because
-                # you can't slice to 0th element inclusive using backward
-                # slicing.
+   
                 t_eval_step = t_eval[t_eval_i_new:t_eval_i][::-1]
 
             if t_eval_step.size > 0:
@@ -264,6 +248,5 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
     else:
         sol = None
 
-    return OdeResult(t=ts, y=ys, sol=sol, t_events=t_events, y_events=y_events,
-                     nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
-                     status=status, message=message, success=status >= 0)
+    return OptimizeResult(t=ts, y=ys)
+

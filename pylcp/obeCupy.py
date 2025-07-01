@@ -53,7 +53,6 @@ class Obe(object):
         self.r0 = r0
         self.v0 = v0
         self.rho0 = rho0
-        self.sol = None
         self.numAtom = self.r0.shape[-1]
 
         self.laserBeams = {} 
@@ -336,10 +335,16 @@ class Obe(object):
         return rho
     
     def __reshape_sol(self, sol):
-        self.sol.t = cp.asnumpy(sol.t)
-        self.sol.rho = cp.asnumpy(self.__reshape_rho(sol.y[:-6]))
-        self.sol.r = cp.asnumpy(cp.real(sol.y[-3:]))
-        self.sol.v = cp.asnumpy(cp.real(sol.y[-6:-3]))
+        sol.t = cp.asnumpy(sol.t)
+        sol.y = sol.y.reshape((-1, self.numAtom, sol.t.shape[0])).transpose(2, 0, 1) # (t, 582, N)
+        if self.transformIntoReIm:
+            sol.rho = sol.y[:, :-6].astype(cp.complex128) # (t, 576, N)
+            sol.rho = cp.einsum("ij,tjk->tik", self.U, sol.rho)
+        sol.rho = cp.asnumpy(sol.rho.reshape(sol.t.shape[0], self.hamiltonian.n, self.hamiltonian.n, -1)) # shape (24, 24, N)
+        sol.r = cp.asnumpy(cp.real(sol.y[:, -3:]))
+        sol.v = cp.asnumpy(cp.real(sol.y[:, -6:-3]))
+        del sol.y
+        return sol
 
     
     def __drhodt(self, t, r, rho):
@@ -502,24 +507,21 @@ class Obe(object):
         if progressBarFlag:
             progressBar.update(1.)
 
-        self.__reshape_sol(sol=sol)
+        sol = self.__reshape_sol(sol=sol)
 
         if self.recordForce:
-            # 插值
             f = interp1d(ts[:-1], cp.array([f[0] for f in Fs[:-1]]).T)
-            self.sol.F = f(self.sol.t)
+            sol.F = f(sol.t)
 
-            # 插值
             f = interp1d(ts[:-1], cp.array([f[3] for f in Fs[:-1]]).T)
-            self.sol.fMag = f(self.sol.t)
+            sol.fMag = f(sol.t)
 
-            # 插值
-            self.sol.f = {}
+            sol.f = {}
             for key in Fs[0][1]:
                 f = interp1d(ts[:-1], cp.array([f[1][key] for f in Fs[:-1]]).T)
-                self.sol.f[key] = f(self.sol.t)
-                self.sol.f[key] = cp.swapaxes(self.sol.f[key], 0, 1)
+                sol.f[key] = f(sol.t)
+                sol.f[key] = cp.swapaxes(sol.f[key], 0, 1)
 
-        return self.sol
+        return sol
 
     
