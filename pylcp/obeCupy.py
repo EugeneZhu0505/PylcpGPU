@@ -335,14 +335,13 @@ class Obe(object):
         return rho
     
     def __reshape_sol(self, sol):
-        sol.t = cp.asnumpy(sol.t)
         sol.y = sol.y.reshape((-1, self.numAtom, sol.t.shape[0])).transpose(2, 0, 1) # (t, 582, N)
         if self.transformIntoReIm:
             sol.rho = sol.y[:, :-6].astype(cp.complex128) # (t, 576, N)
             sol.rho = cp.einsum("ij,tjk->tik", self.U, sol.rho)
-        sol.rho = cp.asnumpy(sol.rho.reshape(sol.t.shape[0], self.hamiltonian.n, self.hamiltonian.n, -1)) # shape (24, 24, N)
-        sol.r = cp.asnumpy(cp.real(sol.y[:, -3:]))
-        sol.v = cp.asnumpy(cp.real(sol.y[:, -6:-3]))
+        sol.rho = sol.rho.reshape(sol.t.shape[0], self.hamiltonian.n, self.hamiltonian.n, -1) # shape (24, 24, N)
+        sol.r = cp.real(sol.y[:, -3:])
+        sol.v = cp.real(sol.y[:, -6:-3])
         del sol.y
         return sol
 

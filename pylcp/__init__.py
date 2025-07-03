@@ -9,8 +9,7 @@ from . import hamiltonians
 from .atom import atom
 from .heuristiceq import heuristiceq
 from .rateeq import rateeq
-from .obe import obe
-from .obe_gpu import obe_gpu
+from .obeCupy import Obe
 from .hamiltonian import hamiltonian
 from .fields import (magField, constantMagneticField, quadrupoleMagneticField, iPMagneticField,
                      laserBeam, laserBeams, infinitePlaneWaveBeam, gaussianBeam,

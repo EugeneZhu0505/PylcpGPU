@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 import time
-import numba
+# import numba
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from .integration_tools import solve_ivp_random

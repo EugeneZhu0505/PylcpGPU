@@ -5,7 +5,7 @@ from pylcp.common import cart2spherical, spherical2cart
 from .integration_tools import parallelIntegrator
 from scipy.spatial.transform import Rotation
 
-import numba
+# import numba
 
 def dot2D(a, b):
     c = cp.zeros((a.shape[1],), dtype=a.dtype)

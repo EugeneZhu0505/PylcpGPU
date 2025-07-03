@@ -1,6 +1,8 @@
 
-import pylcp
 import cupy as cp
+cp.cuda.Device(2).use()
+
+import pylcp
 import scipy.constants as cts
 import pylcp.obeCupy
 import time
@@ -8,6 +10,9 @@ import h5py
 
 from config import coolingArgs
 from scipy.spatial.transform import Rotation
+from scipy.optimize import OptimizeResult
+
+
 
 
 class MOT2DBeams(pylcp.fields.laserBeams):
@@ -52,17 +57,15 @@ class CoolingModule:
         po2D = cp.array(coolingArgs['po_2d']) / x0
         roffset2D = cp.array(coolingArgs['roffset_2d']) / x0
         # 加载初始化数据
-        r0, v0, rho0 = [], [], []
-        with h5py.File('E:\BaiduSyncdisk\Master\Project\Code\AtomEvolve\ZGD\Rb\inti_solsobe612.h5', 'r') as f:
-            for key in f.keys():
-                group = f[key]
-                # t = np.array(group['t'])
-                r0.append(cp.array(group['r']))
-                v0.append(cp.array(group['v']))
-                rho0.append(cp.array(group['rho']).flatten())
-        r0 = cp.array(r0).T
-        v0 = cp.array(v0).T
-        rho0 = cp.array(rho0).T
+        with h5py.File('/home/zhuyuchen/Code/PylcpGPU/initial_sol.h5', 'r') as f:
+            sol = OptimizeResult()
+            group = f['sol']
+            for key in group.keys():
+                sol[key] = cp.array(group[key])
+        r0 = sol.r
+        v0 = sol.v
+        rho0 = sol.rho
+
         det2D = coolingArgs['det_2d']
         wb2D = coolingArgs['wb_2d']
         tmax2D = coolingArgs['tmax_2d']
@@ -142,13 +145,12 @@ class CoolingModule:
 
     def evolve2D(self):
 
-        self.args['r0'] -= self.args['po2D'][:, cp.newaxis]
+        self.args['r0'] = self.args['r0'] + 5e3 * cp.random.randn(3, self.args['r0'].shape[1]) - self.args['po2D'][:, cp.newaxis]
         tSpan = cp.array([0., self.args['tmax2D']])
         tEval = cp.linspace(tSpan[0], tSpan[1], self.args['numPoints'])
         
         print("initializing OBE")
         startTime = time.time()
-        self.args['r0'] -= self.args['po2D'][:, cp.newaxis]
         obe = pylcp.obeCupy.Obe(
             laserBeams=self.laserBeams2D,
             magField=self.magField2D,
@@ -165,14 +167,17 @@ class CoolingModule:
             tSpan=tSpan,
             # random_recoil=self.args['randomRecoilFlag'],
             # max_scatter_probability=self.args['maxScatterProbability'],
+            freezeAxis=cp.array([False, False, False]),
             tEval=tEval,
             progressBarFlag=True
         )
 
+        sol.r += self.args['roffset2D'][cp.newaxis, :, cp.newaxis]
+
         with h5py.File("./sol2D.h5", 'w') as f:
             group = f.create_group('sol')
             for key in sol.keys():
-                group.create_dataset(name=key, data=sol[key])
+                group.create_dataset(name=key, data=cp.asnumpy(sol[key]))
 
 
 
@@ -181,6 +186,7 @@ class CoolingModule:
 
 if __name__ == "__main__":
 
+    
     # 初始化冷却模块
     coolingModule = CoolingModule()
     # 预处理（参数和数据）
