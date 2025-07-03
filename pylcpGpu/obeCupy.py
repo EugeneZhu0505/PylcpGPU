@@ -121,7 +121,7 @@ class Obe(object):
                                  'Hamiltonian d_q.')
         
     def __density_index(self, i, j):
-        return i * self.hamiltonian.n + j
+        return i + self.hamiltonian.n * j
     
     def __build_coherent_ev_submatrix(self, H):
         
@@ -366,10 +366,10 @@ class Obe(object):
                 Eq[cp.abs(Eq) < 1e-10] = 0
                 for i, q in enumerate(np.arange(-1., 2., 1)):
                     drhodt -= (
-                        (-1)**q * cp.real(Eq[2-i]) * (self.evMat['d_q'][key][i] @ rho)
+                        (-1)**q * Eq[2-i] * (self.evMat['d_q'][key][i] @ rho)
                     )
                     drhodt -= (
-                        (-1)**q * cp.imag(Eq[2-i]) * (self.evMat['d_q*'][key][i] @ rho)
+                        (-1)**q * cp.conjugate(Eq[2-i]) * (self.evMat['d_q*'][key][i] @ rho)
                     )
 
         B = self.magField.Field(r, t)
