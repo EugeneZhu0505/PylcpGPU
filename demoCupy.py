@@ -2,9 +2,8 @@
 import cupy as cp
 cp.cuda.Device(2).use()
 
-import pylcp
+import pylcpGpu
 import scipy.constants as cts
-import pylcp.obeCupy
 import time
 import h5py
 
@@ -15,10 +14,10 @@ from scipy.optimize import OptimizeResult
 
 
 
-class MOT2DBeams(pylcp.fields.laserBeams):
+class MOT2DBeams(pylcpGpu.fields.laserBeams):
 
     def __init__(self, ki=1, delta=0,i1=15,i2=2, pol=1, rotation_angles=[0., 0., 0.],
-                 rotation_spec='XYZ', beam_type=pylcp.fields.laserBeam,pol_coord='spherical', **kwargs):
+                 rotation_spec='XYZ', beam_type=pylcpGpu.fields.laserBeam,pol_coord='spherical', **kwargs):
         super().__init__()
         rot_mat = cp.asarray(Rotation.from_euler(rotation_spec, cp.asnumpy(rotation_angles)).as_matrix())
         kvecs = [cp.array([ 1.,  0.,  0.]), cp.array([-1.,  0.,  0.]),
@@ -43,7 +42,7 @@ class CoolingModule:
 
     def prepareArgs(self, coolingArgs):
             
-        atom = pylcp.atom(coolingArgs['atom']) # 原子类
+        atom = pylcpGpu.atom(coolingArgs['atom']) # 原子类
 
         # 固定数值的参数
         k = 2 * cp.pi # 波矢
@@ -113,33 +112,33 @@ class CoolingModule:
     def buildField(self):
 
         atom = self.args['atom']
-        H_g_D2, mu_q_g_D2 = pylcp.hamiltonians.hyperfine_coupled(
+        H_g_D2, mu_q_g_D2 = pylcpGpu.hamiltonians.hyperfine_coupled(
             atom.state[0].J, atom.I, atom.state[0].gJ, atom.gI,
             atom.state[0].Ahfs / atom.state[2].gammaHz,
             Bhfs=0, Chfs=0, muB=1)
-        H_e_D2, mu_q_e_D2 = pylcp.hamiltonians.hyperfine_coupled(
+        H_e_D2, mu_q_e_D2 = pylcpGpu.hamiltonians.hyperfine_coupled(
             atom.state[2].J, atom.I, atom.state[2].gJ, atom.gI,
             Ahfs=atom.state[2].Ahfs / atom.state[2].gammaHz,
             Bhfs=atom.state[2].Bhfs/atom.state[2].gammaHz,
             Chfs=0, muB=1)
-        dijq_D2 = pylcp.hamiltonians.dqij_two_hyperfine_manifolds(
+        dijq_D2 = pylcpGpu.hamiltonians.dqij_two_hyperfine_manifolds(
             atom.state[0].J, atom.state[2].J, atom.I)
         E_e_D2 = cp.unique(cp.diagonal(H_e_D2))
         E_g_D2 = cp.unique(cp.diagonal(0.05 * H_g_D2))
-        self.hamiltonian2D = pylcp.hamiltonian(0.05 * H_g_D2, H_e_D2,
+        self.hamiltonian2D = pylcpGpu.hamiltonian(0.05 * H_g_D2, H_e_D2,
                                           mu_q_g_D2, mu_q_e_D2, dijq_D2,
                                           mass=self.args['mass'])
         self.hamiltonian2D.mass = self.args['mass']
         laserBeamsCooling = MOT2DBeams(delta=E_e_D2[-1]-E_g_D2[1]+self.args['det2D'],
                                         rotation_angles=cp.array(self.args['rotationAngles2D']), pol=1,
-                                        beam_type=pylcp.fields.gaussianBeam,
+                                        beam_type=pylcpGpu.fields.gaussianBeam,
                                         wb=self.args['wb2D'], i1=self.args['Ire2D'], i2=self.args['Ige2D'])
         laserBeamsRepumping = MOT2DBeams(delta=E_e_D2[1]-E_g_D2[0],
                                           rotation_angles=cp.array(self.args['rotationAngles2D']),
-                                          beam_type=pylcp.fields.gaussianBeam,
+                                          beam_type=pylcpGpu.fields.gaussianBeam,
                                           wb=self.args['wb2D'], i1=self.args['Ire2D'], i2=self.args['Ige2D'])
         self.laserBeams2D = laserBeamsCooling + laserBeamsRepumping
-        self.magField2D = pylcp.fields.MOT2DMagneticField(self.args['alpha2D'])
+        self.magField2D = pylcpGpu.fields.MOT2DMagneticField(self.args['alpha2D'])
 
         pass
 
@@ -151,7 +150,7 @@ class CoolingModule:
         
         print("initializing OBE")
         startTime = time.time()
-        obe = pylcp.obeCupy.Obe(
+        obe = pylcpGpu.obeCupy.Obe(
             laserBeams=self.laserBeams2D,
             magField=self.magField2D,
             hamiltonian=self.hamiltonian2D,
