@@ -45,14 +45,13 @@ class CoolingModule:
         atom = pylcpGpu.atom(coolingArgs['atom']) # 原子类
 
         # 固定数值的参数
-        k = 2 * cp.pi # 波矢
+        k = 2 * cp.pi / 780E-7 # 波矢
         x0 = 1 / k # 长度单位换算因子
         gamma = atom.state[2].gammaHz # 原子自然线宽
         t0 = 1 / gamma # 时间单位换算因子
         Isat = 1.6
 
         # 预处理
-        numAtom = coolingArgs['num_atom'] # 原子个数
         po2D = cp.array(coolingArgs['po_2d']) / x0
         roffset2D = cp.array(coolingArgs['roffset_2d']) / x0
         # 加载初始化数据
@@ -65,9 +64,11 @@ class CoolingModule:
         v0 = sol.v
         rho0 = sol.rho
 
+        # print(r0[:, 0])
+
         det2D = coolingArgs['det_2d']
-        wb2D = coolingArgs['wb_2d']
-        tmax2D = coolingArgs['tmax_2d']
+        wb2D = coolingArgs['wb_2d'] / x0
+        tmax2D = coolingArgs['tmax_2d'] / t0
         numPoints = coolingArgs['num_points']
         maxScatterProbability = coolingArgs['max_scatter_probability']
         g = cp.array([0., -9.8, 0.]) * t0 ** 2 / (x0 * 1e-2)
@@ -86,7 +87,6 @@ class CoolingModule:
                 "rho0": rho0,
                 "x0": x0,
                 "g": g,
-                "numAtom": numAtom,
                 "alpha2D": alpha2D,
                 "mass": mass,
                 "Ige2D": Ige2D,
