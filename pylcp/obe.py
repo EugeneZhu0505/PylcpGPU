@@ -451,9 +451,7 @@ class obe(governingeq):
         """
         Reshape the solution to have all the proper parts.
         """
-        print("before trans: ", self.sol.y[:-6].dtype)
         self.sol.rho = self.__reshape_rho(self.sol.y[:-6])
-        print("after trans: ", self.sol.rho.dtype)
         self.sol.r = np.real(self.sol.y[-3:])
         self.sol.v = np.real(self.sol.y[-6:-3])
 

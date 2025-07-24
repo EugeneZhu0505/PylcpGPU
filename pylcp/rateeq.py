@@ -4,13 +4,10 @@
 Tools for solving the rate equations.
 """
 import numpy as np
-import copy
-from scipy.optimize import minimize
+
 from scipy.integrate import solve_ivp
-from inspect import signature
-from .fields import laserBeams, magField
-from .common import (ProgressBar, random_vector, spherical_dot,
-                     cart2spherical, spherical2cart, base_force_profile)
+
+from .common import (progressBar, random_vector, base_force_profile)
 from .governingeq import governingeq
 from .integration_tools import solve_ivp_random
 from scipy.interpolate import interp1d
@@ -287,19 +284,9 @@ class rateeq(governingeq):
             self.Rev[(np.arange(m_off, m_off+m), np.arange(m_off, m_off+m))] -= np.sum(Rij, axis=0)
 
 
-    def construct_evolution_matrix(self, r, v, t=0., default_axis=np.array([0., 0., 1.])):
-        """
-        Constructs the evolution matrix at a given position and time.
+    def construct_evolution_matrix(self, r, v, t=0., 
+                                   default_axis=np.array([0., 0., 1.])):
 
-        Parameters
-        ----------
-        r : array_like, shape (3,)
-            Position at which to calculate the equilibrium population
-        v : array_like, shape (3,)
-            Velocity at which to calculate the equilibrium population
-        t : float
-            Time at which to calculate the equilibrium population
-        """
         if self.tdepend['B']:
             B = self.magField.Field(r, t)
         else:
@@ -329,7 +316,7 @@ class rateeq(governingeq):
         self.Rev += self.Rev_decay
 
         # Recalculate the pumping rates:
-        Bhat = self._calc_pumping_rates(r, v, t, Bhat)
+        self._calc_pumping_rates(r, v, t, Bhat)
 
         # Add the pumping rates to the evolution matrix:
         self._add_pumping_rates_to_Rev()
@@ -337,37 +324,7 @@ class rateeq(governingeq):
         return self.Rev, self.Rijl
 
     def equilibrium_populations(self, r, v, t, **kwargs):
-        """
-        Returns the equilibrium population as determined by the rate equations
-
-        This method uses singular matrix decomposition to find the equilibrium
-        state of the rate equations at a given position, velocity, and time.
-
-        Parameters
-        ----------
-        r : array_like, shape (3,)
-            Position at which to calculate the equilibrium population
-        v : array_like, shape (3,)
-            Velocity at which to calculate the equilibrium population
-        t : float
-            Time at which to calculate the equilibrium population
-        return_details : boolean, optional
-            In addition to the equilibrium populations, return the full
-            population evolution matrix and the scattering rates for each of the
-            lasers
-
-        Returns
-        -------
-        Neq : array_like
-            Equilibrium population vector
-        Rev : array_like
-            If return details is True, the evolution matrix for the state
-            populations.
-        Rijl : dictionary of array_like
-            If return details is True, the scattering rates for each laser and
-            each combination of states between the manifolds specified by the
-            dictionary's index.
-        """
+        
         return_details = kwargs.pop('return_details', False)
 
         Rev, Rijl = self.construct_evolution_matrix(r, v, t, **kwargs)
@@ -393,33 +350,7 @@ class rateeq(governingeq):
 
 
     def force(self, r, t, N, return_details=True):
-        """
-        Calculates the instantaneous force
 
-        Parameters
-        ----------
-        r : array_like
-            Position at which to calculate the force
-        t : float
-            Time at which to calculate the force
-        N : array_like
-            Relative state populations
-        return_details : boolean, optional
-            If True, returns the forces from each laser and the magnetic forces.
-
-        Returns
-        -------
-        F : array_like
-            total equilibrium force experienced by the atom
-        F_laser : dictionary of array_like
-            If return_details is True, the forces due to each laser, indexed
-            by the manifold the laser addresses.  The dictionary is keyed by
-            the transition driven, and individual lasers are in the same order
-            as in the pylcp.laserBeams object used to create the governing
-            equation.
-        F_mag : array_like
-            If return_details is True, the forces due to the magnetic field.
-        """
         F = np.zeros((3,))
         f = {}
 
@@ -475,16 +406,7 @@ class rateeq(governingeq):
 
 
     def set_initial_pop(self, N0):
-        """
-        Sets the initial populations
 
-        Parameters
-        ----------
-        N0 : array_like
-            The initial state population vector :math:`N_0`.  It must have
-            :math:`n` elements, where :math:`n` is the total number of states
-            in the system.
-        """
         if len(N0) != self.hamiltonian.n:
             raise ValueError('Npop has only %d entries for %d states.' %
                              (len(N0), self.hamiltonian.n))
@@ -624,9 +546,10 @@ class rateeq(governingeq):
                 else:
                     F = self.force(r, t, N, return_details=False)
 
-                dydt = np.concatenate((Rev @ N,
-                                       F*free_axes/self.hamiltonian.mass+
-                                       self.constant_accel,
+                acc = F*free_axes/self.hamiltonian.mass+self.constant_accel
+                drhodt = np.dot(Rev, N)
+                dydt = np.concatenate((drhodt,
+                                       acc,
                                        v))
             else:
                 dydt = np.concatenate((Rev @ N,

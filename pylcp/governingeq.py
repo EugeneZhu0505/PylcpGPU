@@ -5,7 +5,41 @@ from .fields import laserBeams as laserBeamsObject
 from scipy.optimize import root_scalar, root
 
 class governingeq(object):
+    """
+    Governing equation base class
 
+    This class is the basis for making all the governing equations in `pylcp`,
+    including the rate equations, heuristic equation, and the optical Bloch
+    equations.  Its methods are available to other governing equations.
+
+    Parameters
+    ----------
+    laserBeams : dictionary of pylcp.laserBeams, pylcp.laserBeams, or list of pylcp.laserBeam
+        The laserBeams that will be used in constructing the optical Bloch
+        equations.  which transitions in the block diagonal hamiltonian.  It can
+        be any of the following:
+
+            * A dictionary of pylcp.laserBeams: if this is the case, the keys of
+              the dictionary should match available :math:`d^{nm}` matrices
+              in the pylcp.hamiltonian object.  The key structure should be
+              `n->m`.
+            * pylcp.laserBeams: a single set of laser beams is assumed to
+              address the transition `g->e`.
+            * a list of pylcp.laserBeam: automatically promoted to a
+              pylcp.laserBeams object assumed to address the transtion `g->e`.
+
+    magField : pylcp.magField or callable
+        The function or object that defines the magnetic field.
+    hamiltonian : pylcp.hamiltonian or None
+        The internal hamiltonian of the particle.
+    a : array_like, shape (3,), optional
+        A default acceleraiton to apply to the particle's motion, usually
+        gravity. Default: [0., 0., 0.]
+    r0 : array_like, shape (3,)
+        Initial position.  Default: [0.,0.,0.]
+    v0 : array_like, shape (3,)
+        Initial velocity.  Default: [0.,0.,0.]
+    """
 
     def __init__(self, laserBeams, magField, hamiltonian=None,
                  a=np.array([0., 0., 0.]), r0=np.array([0., 0., 0.]),

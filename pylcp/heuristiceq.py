@@ -1,12 +1,8 @@
 import numpy as np
-import copy
-import time
-# import numba
+
 from scipy.integrate import solve_ivp
-from scipy.interpolate import interp1d
 from .integration_tools import solve_ivp_random
-from .common import (ProgressBar, random_vector, spherical_dot,
-                     cart2spherical, spherical2cart)
+from .common import (progressBar, random_vector)
 from .common import base_force_profile as force_profile
 from .governingeq import governingeq
 
