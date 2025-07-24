@@ -3,7 +3,7 @@ import copy
 import numpy as np
 from scipy.optimize import fsolve
 
-class progressBar(object):
+class ProgressBar(object):
     def __init__(self, decimals=1, fill='█', prefix='Progress:',
                  suffix='', time_remaining_prefix=' time left', length=30,
                  update_rate=0.5):
