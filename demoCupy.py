@@ -1,8 +1,6 @@
 
 
 import numpy as np
-# import cupy as cp
-# np.cuda.Device(2).use()
 
 import pylcpGpu
 import scipy.constants as cts

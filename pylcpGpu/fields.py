@@ -1,5 +1,4 @@
 import numpy as np
-# import cupy as cp
 from inspect import signature
 from pylcpGpu.common import cart2spherical, spherical2cart
 from .integration_tools import parallelIntegrator

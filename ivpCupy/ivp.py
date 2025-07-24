@@ -1,6 +1,5 @@
 import inspect
 import numpy as np
-# import cupy as cp
 from .bdf import BDF
 from .radau import Radau
 from .rk import RK23, RK45, DOP853

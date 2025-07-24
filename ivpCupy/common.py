@@ -1,9 +1,7 @@
 from itertools import groupby
 from warnings import warn
 import numpy as np
-# import cupy as cp
 from scipy.sparse import find, coo_matrix
-# from cupyx.scipy.sparse import find, coo_matrix
 
 
 EPS = np.finfo(float).eps
@@ -48,10 +46,7 @@ def validate_tol(rtol, atol, n):
 
 
 def norm(x):
-    if hasattr(x, '__array_ufunc__') and x.__class__.__module__ == 'cupy':
-        return np.linalg.norm(x) / x.size ** 0.5
-    else:
-        return np.linalg.norm(x) / x.size ** 0.5
+    return np.linalg.norm(x) / x.size ** 0.5
 
 
 def select_initial_step(fun, t0, y0, f0, direction, order, rtol, atol):

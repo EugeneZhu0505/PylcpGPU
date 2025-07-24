@@ -1,8 +1,6 @@
 
 import copy
 import numpy as np
-# import cupy as cp
-# from cupyx.scipy import sparse
 import scipy.sparse as sparse
 
 from ivpCupy import solve_ivp

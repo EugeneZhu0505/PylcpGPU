@@ -1,5 +1,4 @@
 import numpy as np
-# import cupy as cp
 from .base import OdeSolver, DenseOutput
 from .common import (validate_max_step, validate_tol, select_initial_step,
                      norm, warn_extraneous, validate_first_step)
