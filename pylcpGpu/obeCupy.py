@@ -1,50 +1,45 @@
 
 import copy
 import numpy as np
-import scipy.sparse as sparse
+import cupy as cp
+# import scipy.sparse as sparse
+import cupyx.scipy.sparse as sparse
 
-from ivpCupy import solve_ivp
+from ivpCupy.rk_matrix import solve_ivp_matrix
 from scipy.interpolate import interp1d
 from .fields import magField as magFieldObject
 from .fields import laserBeams as laserBeamsObject
 from .common import ProgressBar
 
-
 def spherical2cart(A):
-
-    return np.array(
-        [1 / np.sqrt(2) * (-A[2] + A[0]),
-         1j / np.sqrt(2) * (A[2] + A[0]), A[1]]
+    return cp.array(
+        [1 / cp.sqrt(2) * (-A[2] + A[0]),
+         1j / cp.sqrt(2) * (A[2] + A[0]), A[1]]
     )
-
-    return np.array([1/np.sqrt(2)*(-A[2]+A[0]), 1j/np.sqrt(2)*(A[2]+A[0]), A[1]])
 
 def cart2spherical(A):
-
-    return np.array(
-        [(A[0] - 1j * A[1]) / np.sqrt(2), A[2], 
-         -(A[0] + 1j * A[1]) / np.sqrt(2)]
+    return cp.array(
+        [(A[0] - 1j * A[1]) / cp.sqrt(2), A[2], 
+         -(A[0] + 1j * A[1]) / cp.sqrt(2)]
     )
-
-    return np.array([(A[0]-1j*A[1])/np.sqrt(2), A[2], -(A[0]+1j*A[1])/np.sqrt(2)])
 
 
 def cartesian_vector_tensor_dot(a, B):
 
     if B.ndim == 2 and a.ndim == 1:
-        return np.dot(B, a)
+        return cp.dot(B, a)
     elif B.ndim == 2:
-        return np.sum(a[np.newaxis, ...] * B[..., np.newaxis], axis=1)
+        return cp.sum(a[cp.newaxis, ...] * B[..., cp.newaxis], axis=1)
     else:
-        return np.sum(a[np.newaxis, ...] * B[...], axis=1)
+        return cp.sum(a[cp.newaxis, ...] * B[...], axis=1)
 
 
 class Obe(object):
 
     def __init__(
         self, laserBeams, magField, hamiltonian=None,
-        a=np.array([0., 0., 0.]), r0=np.array([0., 0., 0.]),
-        v0=np.array([0., 0., 0.]), rho0=np.random.randn(24, ),
+        a=cp.array([0., 0., 0.]), r0=cp.array([0., 0., 0.]),
+        v0=cp.array([0., 0., 0.]), rho0=cp.random.randn(24, ),
         transformIntoReIm=True, useSparseMatrices=None, 
         includeMagForces=True, recordForce=False,
     ) -> None:
@@ -68,7 +63,7 @@ class Obe(object):
         else:
             raise TypeError('laserBeams is not a valid type.')
 
-        if callable(magField) or isinstance(magField, np.ndarray):
+        if callable(magField) or isinstance(magField, cp.ndarray):
             self.magField = magFieldObject(magField)
         elif isinstance(magField, magFieldObject):
             self.magField = copy.copy(magField)
@@ -81,7 +76,7 @@ class Obe(object):
             self.hamiltonian.make_full_matrices()
             self.__check_consistency_in_lasers_and_d_q()
 
-        if not isinstance(a, np.ndarray):
+        if not isinstance(a, cp.ndarray):
             raise TypeError('Constant acceleration must be an cupy array.')
         elif a.size != 3:
             raise ValueError('Constant acceleration must have length 3.')
@@ -124,9 +119,9 @@ class Obe(object):
     
     def __build_coherent_ev_submatrix(self, H):
         
-        evMat = np.zeros(
+        evMat = cp.zeros(
             (self.hamiltonian.n**2, self.hamiltonian.n**2),
-            dtype=np.complex128
+            dtype=cp.complex128
         )
 
         for i in range(self.hamiltonian.n):
@@ -149,7 +144,7 @@ class Obe(object):
             self.evMat['B'][q] = self.__build_coherent_ev_submatrix(
                 self.hamiltonian.mu_q[q]
             )
-        self.evMat['B'] = np.array(self.evMat['B'])
+        self.evMat['B'] = cp.array(self.evMat['B'])
 
         self.evMat['d_q'] = {}
         self.evMat['d_q*'] = {}
@@ -164,31 +159,31 @@ class Obe(object):
                 self.evMat['d_q*'][key][q] = self.__build_coherent_ev_submatrix(
                     gamma * self.hamiltonian.d_q_star[key][q] / 4.
                 )
-            self.evMat['d_q'][key] = np.array(self.evMat['d_q'][key])
-            self.evMat['d_q*'][key] = np.array(self.evMat['d_q*'][key])
+            self.evMat['d_q'][key] = cp.array(self.evMat['d_q'][key])
+            self.evMat['d_q*'][key] = cp.array(self.evMat['d_q*'][key])
 
     def __build_decay_ev(self):
 
         d_q_bare = {}
         d_q_star = {}
         for key in self.laserBeams.keys():
-            d_q_bare[key] = np.asarray(self.hamiltonian.d_q_bare[key])
-            d_q_star[key] = np.array(self.hamiltonian.d_q_star[key])
+            d_q_bare[key] = cp.asarray(self.hamiltonian.d_q_bare[key])
+            d_q_star[key] = cp.array(self.hamiltonian.d_q_star[key])
 
         self.decayRates = {}
         self.decayRatesTruncated = {}
         self.decayRhoIndices = {}
         self.recoilVelocity = {}
 
-        self.evMat['decay'] = np.zeros(
+        self.evMat['decay'] = cp.zeros(
             (self.hamiltonian.n ** 2, self.hamiltonian.n ** 2),
-            dtype=np.complex128
+            dtype=cp.complex128
         )
 
         for key in d_q_bare:
-            evMat = np.zeros(
+            evMat = cp.zeros(
                 (self.hamiltonian.n ** 2, self.hamiltonian.n ** 2),
-                dtype=np.complex128
+                dtype=cp.complex128
             )
             gamma = self.hamiltonian.blocks[self.hamiltonian.laser_keys[key]].parameters['gamma']
 
@@ -208,15 +203,15 @@ class Obe(object):
             
             evMat = 0.5 * gamma * evMat
 
-            self.decayRates[key] = -np.real(
-                np.array(
+            self.decayRates[key] = -cp.real(
+                cp.array(
                     [evMat[self.__density_index(i, i), self.__density_index(i, i)] 
                      for i in range(self.hamiltonian.n)]
                 )
             )
 
             self.decayRatesTruncated[key] = self.decayRates[key][self.decayRates[key] > 0]
-            self.decayRhoIndices[key] = np.array(
+            self.decayRhoIndices[key] = cp.array(
                 [self.__density_index(i, i)
                  for i, rate in enumerate(self.decayRates[key]) if rate > 0]
             )
@@ -229,13 +224,13 @@ class Obe(object):
 
     def __build_transform_matrices(self):
 
-        self.U = np.zeros(
+        self.U = cp.zeros(
             (self.hamiltonian.n**2, self.hamiltonian.n**2),
-            dtype=np.complex128
+            dtype=cp.complex128
         )
-        self.Uinv = np.zeros(
+        self.Uinv = cp.zeros(
             (self.hamiltonian.n**2, self.hamiltonian.n**2),
-            dtype=np.complex128
+            dtype=cp.complex128
         )
 
         for i in range(self.hamiltonian.n):
@@ -265,8 +260,8 @@ class Obe(object):
         
         evMatNew = self.Uinv @ evMat @ self.U
 
-        if np.allclose(np.imag(evMatNew), 0.):
-            return np.real(evMatNew)
+        if cp.allclose(cp.imag(evMatNew), 0.):
+            return cp.real(evMatNew)
         else:
             raise ValueError('Something went dreadfully wrong.')
 
@@ -279,11 +274,11 @@ class Obe(object):
         self.evMat['imE'] = {}
 
         for key in self.evMat['d_q'].keys():
-            self.evMat['reE'][key] = np.array(
+            self.evMat['reE'][key] = cp.array(
                 [self.__transform_ev_matrix(self.evMat['d_q'][key][j] + self.evMat['d_q*'][key][j])
                  for j in range(3)]
             )
-            self.evMat['imE'][key] = np.array(
+            self.evMat['imE'][key] = cp.array(
                 [self.__transform_ev_matrix(1j * (self.evMat['d_q'][key][j] - self.evMat['d_q*'][key][j]))
                  for j in range(3)]
             )
@@ -294,7 +289,7 @@ class Obe(object):
             self.evMat['B'][j] = self.__transform_ev_matrix(
                 self.evMat['B'][j]
             )
-        self.evMat['B'] = np.real(self.evMat['B'])
+        self.evMat['B'] = cp.real(self.evMat['B'])
 
         del self.evMat['d_q']
         del self.evMat['d_q*']
@@ -322,25 +317,22 @@ class Obe(object):
                 )
 
     def __reshape_rho(self, rho):
-        # rho shape (576, N)
         if self.transformIntoReIm:
-            rho = rho.astype(np.complex128)
+            rho = rho.astype(cp.complex128)
             rho = self.U @ rho
         
-        rho = rho.reshape(self.hamiltonian.n, self.hamiltonian.n, -1) # shape (24, 24, N)
-
-        # return rho
+        rho = rho.reshape(self.hamiltonian.n, self.hamiltonian.n, -1)
 
         return rho
     
     def __reshape_sol(self, sol):
-        sol.y = sol.y.reshape((-1, self.numAtom, sol.t.shape[0])).transpose(2, 0, 1) # (t, 582, N)
+        sol.y = sol.y.transpose(2, 0, 1)
         if self.transformIntoReIm:
-            sol.rho = sol.y[:, :-6].astype(np.complex128) # (t, 576, N)
-            sol.rho = np.einsum("ij,tjk->tik", self.U, sol.rho)
-        sol.rho = sol.rho.reshape(sol.t.shape[0], self.hamiltonian.n, self.hamiltonian.n, -1) # shape (24, 24, N)
-        sol.r = np.real(sol.y[:, -3:])
-        sol.v = np.real(sol.y[:, -6:-3])
+            sol.rho = sol.y[:, :-6].astype(cp.complex128)
+            sol.rho = cp.einsum("ij,tjk->tik", self.U, sol.rho)
+        sol.rho = sol.rho.reshape(sol.t.shape[0], self.hamiltonian.n, self.hamiltonian.n, -1)
+        sol.r = cp.real(sol.y[:, -3:])
+        sol.v = cp.real(sol.y[:, -6:-3])
         del sol.y
         return sol
 
@@ -352,43 +344,43 @@ class Obe(object):
         for key in self.laserBeams.keys():
             if self.transformIntoReIm:
                 Eq = self.laserBeams[key].total_electric_field(r, t)
-                Eq[np.abs(Eq) < 1e-10] = 0
+                Eq[cp.abs(Eq) < 1e-10] = 0
                 for i, q in enumerate(np.arange(-1., 2., 1)):
                     drhodt -= (
-                        (-1)**q * np.real(Eq[2-i]) * (self.evMat['reE'][key][i] @ rho)
+                        (-1)**q * cp.real(Eq[2-i]) * (self.evMat['reE'][key][i] @ rho)
                     )
                     drhodt -= (
-                        (-1)**q * np.imag(Eq[2-i]) * (self.evMat['imE'][key][i] @ rho)
+                        (-1)**q * cp.imag(Eq[2-i]) * (self.evMat['imE'][key][i] @ rho)
                     )
             else:
-                Eq = self.laserBeams[key].total_electric_field(np.real(r), t)
-                Eq[np.abs(Eq) < 1e-10] = 0
+                Eq = self.laserBeams[key].total_electric_field(cp.real(r), t)
+                Eq[cp.abs(Eq) < 1e-10] = 0
                 for i, q in enumerate(np.arange(-1., 2., 1)):
                     drhodt -= (
                         (-1)**q * Eq[2-i] * (self.evMat['d_q'][key][i] @ rho)
                     )
                     drhodt -= (
-                        (-1)**q * np.conjugate(Eq[2-i]) * (self.evMat['d_q*'][key][i] @ rho)
+                        (-1)**q * cp.conjugate(Eq[2-i]) * (self.evMat['d_q*'][key][i] @ rho)
                     )
 
         B = self.magField.Field(r, t)
-        B[np.abs(B) < 1e-10] = 0
+        B[cp.abs(B) < 1e-10] = 0
 
         for i in np.arange(B.shape[0]):
             if self.transformIntoReIm:
                 drhodt -= self.evMat['B'][i] @ rho * B[i]
             else:
                 Bq = cart2spherical(B)
-                Bq[np.abs(Bq) < 1e-10] = 0
-                drhodt -= self.evMat['B'][i] @ rho * np.conjugate(Bq[i])
+                Bq[cp.abs(Bq) < 1e-10] = 0
+                drhodt -= self.evMat['B'][i] @ rho * cp.conjugate(Bq[i])
                 
         return drhodt
     
     def observable(self, O, rho):
 
-        avO = np.einsum('ijk,jkl->il', O, rho)
-        if np.allclose(np.imag(avO), 0):
-            return np.real(avO)
+        avO = cp.einsum('ijk,jkl->il', O, rho)
+        if cp.allclose(cp.imag(avO), 0):
+            return cp.real(avO)
         else:
             return avO
 
@@ -398,7 +390,7 @@ class Obe(object):
         if rho.shape[0] != self.hamiltonian.n:
             rho = self.__reshape_rho(rho)
 
-        f = np.zeros((3,) + rho.shape[2:])
+        f = cp.zeros((3,) + rho.shape[2:])
 
         if self.recordForce:
             f_laser_q = {}
@@ -414,15 +406,15 @@ class Obe(object):
             if not self.recordForce:
                 delE = self.laserBeams[key].total_electric_field_gradient(r, t)
                 for j, q in enumerate(np.arange(-1., 2., 1.)):
-                    f += np.real(
+                    f += cp.real(
                         (-1) ** q * gamma * mu_q_av[j] * delE[:, 2 - j]
                     ) / 2
             else:
-                f_laser_q[key] = np.zeros(
+                f_laser_q[key] = cp.zeros(
                     (3, 3, self.laserBeams[key].num_of_beams) + rho.shape[2:]
                 )
 
-                f_laser[key] = np.zeros(
+                f_laser[key] = cp.zeros(
                     (3, self.laserBeams[key].num_of_beams) + rho.shape[2:]
                 )
                 for ii, beam in enumerate(self.laserBeams[key].beam_vector):
@@ -430,17 +422,17 @@ class Obe(object):
                     delE = beam.electric_field_gradient(r, t)
                     for jj, q in enumerate(np.arange(-1., 2., 1.)):
 
-                        f_laser_q[key][:, jj, ii] += np.real(
+                        f_laser_q[key][:, jj, ii] += cp.real(
                             (-1) ** q * gamma * mu_q_av[jj] * delE[:, 2 - jj]
                         ) / 2
 
-                    f_laser[key][:, ii] = np.sum(f_laser_q[key][:, :, ii], axis=1)
+                    f_laser[key][:, ii] = cp.sum(f_laser_q[key][:, :, ii], axis=1)
 
-                f = f + np.sum(f_laser[key], axis=1)
+                f = f + cp.sum(f_laser[key], axis=1)
 
         if self.includeMagForces:
             delB = self.magField.gradField(r)
-            mu = np.asarray(self.hamiltonian.mu)
+            mu = cp.asarray(self.hamiltonian.mu)
             av_mu = self.observable(mu, rho)
             f_mag = cartesian_vector_tensor_dot(av_mu, delB)
 
@@ -448,34 +440,27 @@ class Obe(object):
 
         return f
     
-    def evolve_motion(
-            self, tSpan, tEval, freezeAxis=np.array([False, False, False]), 
+
+    
+    def evolve_motion_parallel(
+            self, tSpan, tEval, freezeAxis=cp.array([False, False, False]), 
             randomRecoilFlag=False, maxScatterProbability=0.1,
             progressBarFlag=False, 
     ):
         
-        freeAxes = np.bitwise_not(freezeAxis)
-
+        freeAxes = cp.bitwise_not(freezeAxis)
         if progressBarFlag:
             progressBar = ProgressBar()
-
-        # 记录求解全过程中的力
         if self.recordForce:
             ts = []
             Fs = []
 
-        # 定义导数
         def dydt(t, y):
-
-            y = y.reshape(-1, self.numAtom)
-            t = t.item() if isinstance(t, np.ndarray) else t
-
-            # 更新进度条
+            t = t.item() if isinstance(t, cp.ndarray) else t
             if progressBarFlag:
                 progressBar.update(t / tSpan[1].item())
             
             if self.recordForce:
-                # 将 force 求解的力记录下来
                 F = self.force(y[-3:], t, y[:-6])
                 ts.append(t)
                 Fs.append(F)
@@ -483,23 +468,21 @@ class Obe(object):
             else:
                 F = self.force(y[-3:], t, y[:-6])
 
-            # 态密度导数
             drhodt = self.__drhodt(t=t, r=y[-3:], rho=y[:-6])
-
-            # 速度导数
-            dvdt = freeAxes[:, np.newaxis] * F / self.hamiltonian.mass + self.constant_accel[:, np.newaxis]
-
-            # 位置导数
+            dvdt = freeAxes[:, cp.newaxis] * F / self.hamiltonian.mass + self.constant_accel[:, cp.newaxis]
             drdt = y[-6:-3]
 
-            return np.concatenate((drhodt, dvdt, drdt)).flatten()
+            return cp.vstack((drhodt, dvdt, drdt))
 
-
-        sol = solve_ivp(
+        y0 = cp.vstack((self.rho0.reshape(-1, self.numAtom), 
+                        self.v0.reshape(-1, self.numAtom), 
+                        self.r0.reshape(-1, self.numAtom)))
+        
+        sol = solve_ivp_matrix(
             fun=dydt,
             t_span=tSpan,
             t_eval=tEval,
-            y0=np.concatenate((self.rho0, self.v0, self.r0)).flatten(),
+            y0=y0,
         )
 
         if progressBarFlag:
@@ -508,17 +491,17 @@ class Obe(object):
         sol = self.__reshape_sol(sol=sol)
 
         if self.recordForce:
-            f = interp1d(ts[:-1], np.array([f[0] for f in Fs[:-1]]).T)
+            f = interp1d(ts[:-1], cp.array([f[0] for f in Fs[:-1]]).T)
             sol.F = f(sol.t)
 
-            f = interp1d(ts[:-1], np.array([f[3] for f in Fs[:-1]]).T)
+            f = interp1d(ts[:-1], cp.array([f[3] for f in Fs[:-1]]).T)
             sol.fMag = f(sol.t)
 
             sol.f = {}
             for key in Fs[0][1]:
-                f = interp1d(ts[:-1], np.array([f[1][key] for f in Fs[:-1]]).T)
+                f = interp1d(ts[:-1], cp.array([f[1][key] for f in Fs[:-1]]).T)
                 sol.f[key] = f(sol.t)
-                sol.f[key] = np.swapaxes(sol.f[key], 0, 1)
+                sol.f[key] = cp.swapaxes(sol.f[key], 0, 1)
 
         return sol
 

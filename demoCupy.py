@@ -1,6 +1,7 @@
 
 
-import numpy as np
+# import numpy as np
+import cupy as cp
 
 import pylcpGpu
 import scipy.constants as cts
@@ -19,10 +20,10 @@ class MOT2DBeams(pylcpGpu.fields.laserBeams):
     def __init__(self, ki=1, delta=0,i1=15,i2=2, pol=1, rotation_angles=[0., 0., 0.],
                  rotation_spec='XYZ', beam_type=pylcpGpu.fields.laserBeam,pol_coord='spherical', **kwargs):
         super().__init__()
-        rot_mat = Rotation.from_euler(rotation_spec, rotation_angles).as_matrix()
-        kvecs = [np.array([ 1.,  0.,  0.]), np.array([-1.,  0.,  0.]),
-                 np.array([ 0.,  1.,  0.]), np.array([ 0., -1.,  0.]),
-                 np.array([ 0.,  0.,  1.])]
+        rot_mat = cp.asarray(Rotation.from_euler(rotation_spec, cp.asnumpy(rotation_angles)).as_matrix())
+        kvecs = [cp.array([ 1.,  0.,  0.]), cp.array([-1.,  0.,  0.]),
+                 cp.array([ 0.,  1.,  0.]), cp.array([ 0., -1.,  0.]),
+                 cp.array([ 0.,  0.,  1.])]
         ss=[i1, i1, i1, i1, i2]
         deltas=[delta, delta, delta, delta, delta]
         pols = [-pol, -pol, pol, pol, -pol]
@@ -45,21 +46,21 @@ class CoolingModule:
         atom = pylcpGpu.atom(coolingArgs['atom']) # 原子类
 
         # 固定数值的参数
-        k = 2 * np.pi / 780E-7 # 波矢
+        k = 2 * cp.pi / 780E-7 # 波矢
         x0 = 1 / k # 长度单位换算因子
         gamma = atom.state[2].gammaHz # 原子自然线宽
         t0 = 1 / gamma # 时间单位换算因子
         Isat = 1.6
 
         # 预处理
-        po2D = np.array(coolingArgs['po_2d']) / x0
-        roffset2D = np.array(coolingArgs['roffset_2d']) / x0
+        po2D = cp.array(coolingArgs['po_2d']) / x0
+        roffset2D = cp.array(coolingArgs['roffset_2d']) / x0
         # 加载初始化数据
-        with h5py.File('/root/PylcpGPU-main/initial_sol.h5', 'r') as f:
+        with h5py.File('initial_sol.h5', 'r') as f:
             sol = OptimizeResult()
             group = f['sol']
             for key in group.keys():
-                sol[key] = np.array(group[key])
+                sol[key] = cp.array(group[key])
         r0 = sol.r
         v0 = sol.v
         rho0 = sol.rho
@@ -71,9 +72,9 @@ class CoolingModule:
         tmax2D = coolingArgs['tmax_2d'] / t0
         numPoints = coolingArgs['num_points']
         maxScatterProbability = coolingArgs['max_scatter_probability']
-        g = np.array([0., -9.8, 0.]) * t0 ** 2 / (x0 * 1e-2)
+        g = cp.array([0., -9.8, 0.]) * t0 ** 2 / (x0 * 1e-2)
         randomRecoilFlag = coolingArgs['random_recoil_flag']
-        rotationAngles2D = np.array(coolingArgs['rotation_angles_2d'])
+        rotationAngles2D = cp.array(coolingArgs['rotation_angles_2d'])
         Ige2D = coolingArgs['Ige_2d'] / Isat
         Ire2D = coolingArgs['Ire_2d'] / Isat
         alpha2D = (3/2) * cts.value('Bohr magneton in Hz/T') * 1e-4 * 8 * x0 / gamma * 2
@@ -123,18 +124,18 @@ class CoolingModule:
             Chfs=0, muB=1)
         dijq_D2 = pylcpGpu.hamiltonians.dqij_two_hyperfine_manifolds(
             atom.state[0].J, atom.state[2].J, atom.I)
-        E_e_D2 = np.unique(np.diagonal(H_e_D2))
-        E_g_D2 = np.unique(np.diagonal(0.05 * H_g_D2))
+        E_e_D2 = cp.unique(cp.diagonal(H_e_D2))
+        E_g_D2 = cp.unique(cp.diagonal(0.05 * H_g_D2))
         self.hamiltonian2D = pylcpGpu.hamiltonian(0.05 * H_g_D2, H_e_D2,
                                           mu_q_g_D2, mu_q_e_D2, dijq_D2,
                                           mass=self.args['mass'])
         self.hamiltonian2D.mass = self.args['mass']
         laserBeamsCooling = MOT2DBeams(delta=E_e_D2[-1]-E_g_D2[1]+self.args['det2D'],
-                                        rotation_angles=np.array(self.args['rotationAngles2D']), pol=1,
+                                        rotation_angles=cp.array(self.args['rotationAngles2D']), pol=1,
                                         beam_type=pylcpGpu.fields.gaussianBeam,
                                         wb=self.args['wb2D'], i1=self.args['Ire2D'], i2=self.args['Ige2D'])
         laserBeamsRepumping = MOT2DBeams(delta=E_e_D2[1]-E_g_D2[0],
-                                          rotation_angles=np.array(self.args['rotationAngles2D']),
+                                          rotation_angles=cp.array(self.args['rotationAngles2D']),
                                           beam_type=pylcpGpu.fields.gaussianBeam,
                                           wb=self.args['wb2D'], i1=self.args['Ire2D'], i2=self.args['Ige2D'])
         self.laserBeams2D = laserBeamsCooling + laserBeamsRepumping
@@ -144,9 +145,9 @@ class CoolingModule:
 
     def evolve2D(self):
 
-        self.args['r0'] = self.args['r0'] + 5e3 * np.random.randn(3, self.args['r0'].shape[1]) - self.args['po2D'][:, np.newaxis]
-        tSpan = np.array([0., self.args['tmax2D']])
-        tEval = np.linspace(tSpan[0], tSpan[1], self.args['numPoints'])
+        self.args['r0'] = self.args['r0'] + 5e3 * cp.random.randn(3, self.args['r0'].shape[1]) - self.args['po2D'][:, cp.newaxis]
+        tSpan = cp.array([0., self.args['tmax2D']])
+        tEval = cp.linspace(tSpan[0], tSpan[1], self.args['numPoints'])
         
         print("initializing OBE")
         startTime = time.time()
@@ -162,21 +163,31 @@ class CoolingModule:
         print("OBE initialized in {} s".format(time.time() - startTime))
 
         print("evolving OBE")
-        sol = obe.evolve_motion(
+        # sol = obe.evolve_motion(
+        #     tSpan=tSpan,
+        #     # random_recoil=self.args['randomRecoilFlag'],
+        #     # max_scatter_probability=self.args['maxScatterProbability'],
+        #     freezeAxis=cp.array([False, False, False]),
+        #     tEval=tEval,
+        #     progressBarFlag=True
+        # )
+    
+        sol = obe.evolve_motion_parallel(
             tSpan=tSpan,
             # random_recoil=self.args['randomRecoilFlag'],
             # max_scatter_probability=self.args['maxScatterProbability'],
-            freezeAxis=np.array([False, False, False]),
+            freezeAxis=cp.array([False, False, False]),
             tEval=tEval,
             progressBarFlag=True
         )
 
-        sol.r += self.args['roffset2D'][np.newaxis, :, np.newaxis]
+
+        sol.r += self.args['roffset2D'][cp.newaxis, :, cp.newaxis]
 
         with h5py.File("/root/PylcpGPU-main/sol2D.h5", 'w') as f:
             group = f.create_group('sol')
             for key in sol.keys():
-                group.create_dataset(name=key, data=np.asnumpy(sol[key]))
+                group.create_dataset(name=key, data=cp.asnumpy(sol[key]))
 
 
 

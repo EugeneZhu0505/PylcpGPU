@@ -7,8 +7,6 @@ import numpy as np
 
 from . import hamiltonians
 from .atom import atom
-from .heuristiceq import heuristiceq
-from .rateeq import rateeq
 from .obeCupy import Obe
 from .hamiltonian import hamiltonian
 from .fields import (magField, constantMagneticField, quadrupoleMagneticField, iPMagneticField,

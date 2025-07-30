@@ -1,9 +1,10 @@
-import numpy as np
+# import numpy as np
+import cupy as cp
 
 def check_arguments(fun, y0, support_complex):
     """Helper function for checking arguments common to all solvers."""
-    y0 = np.asarray(y0)
-    if np.issubdtype(y0.dtype, np.complexfloating):
+    y0 = cp.asarray(y0)
+    if cp.issubdtype(y0.dtype, cp.complexfloating):
         if not support_complex:
             raise ValueError("`y0` is complex, but the chosen solver does "
                              "not support integration in a complex domain.")
@@ -16,7 +17,7 @@ def check_arguments(fun, y0, support_complex):
         raise ValueError("`y0` must be 1-dimensional.")
 
     def fun_wrapped(t, y):
-        return np.asarray(fun(t, y), dtype=dtype)
+        return cp.asarray(fun(t, y), dtype=dtype)
 
     return fun_wrapped, y0
 
@@ -127,7 +128,7 @@ class OdeSolver:
             fun_single = self._fun
 
             def fun_vectorized(t, y):
-                f = np.empty_like(y)
+                f = cp.empty_like(y)
                 for i, yi in enumerate(y.T):
                     f[:, i] = self._fun(t, yi)
                 return f
@@ -140,7 +141,7 @@ class OdeSolver:
         self.fun_single = fun_single
         self.fun_vectorized = fun_vectorized
 
-        self.direction = np.sign(t_bound - t0) if t_bound != t0 else 1
+        self.direction = cp.sign(t_bound - t0) if t_bound != t0 else 1
         self.n = self.y.size
         self.status = 'running'
 
@@ -153,7 +154,7 @@ class OdeSolver:
         if self.t_old is None:
             return None
         else:
-            return np.abs(self.t - self.t_old)
+            return cp.abs(self.t - self.t_old)
 
     def step(self):
         """Perform one integration step.
@@ -245,7 +246,7 @@ class DenseOutput:
             Computed values. Shape depends on whether `t` was a scalar or a
             1-D array.
         """
-        t = np.asarray(t)
+        t = cp.asarray(t)
         if t.ndim > 1:
             raise ValueError("`t` must be a float or a 1-D array.")
         return self._call_impl(t)
@@ -268,6 +269,6 @@ class ConstantDenseOutput(DenseOutput):
         if t.ndim == 0:
             return self.value
         else:
-            ret = np.empty((self.value.shape[0], t.shape[0]))
+            ret = cp.empty((self.value.shape[0], t.shape[0]))
             ret[:] = self.value[:, None]
             return ret
